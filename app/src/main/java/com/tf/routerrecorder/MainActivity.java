@@ -21,6 +21,8 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.tf.routerrecorder.Adapters.ListAdapter;
 import com.tf.routerrecorder.Utils.RouteHelper;
 
+import static com.tf.routerrecorder.Utils.Constants.*;
+
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.osmdroid.api.IMapController;
@@ -30,12 +32,12 @@ import org.osmdroid.util.GeoPoint;
 import org.osmdroid.views.MapView;
 import org.osmdroid.views.overlay.ItemizedIconOverlay;
 import org.osmdroid.views.overlay.OverlayItem;
+import org.osmdroid.views.overlay.Polyline;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -51,12 +53,16 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
     private ListAdapter adapter;
     private final DateTimeFormatter dtf = DateTimeFormatter.ofPattern("HH:mm:ss");
 
+    private Polyline polyline;
+    private ArrayList<GeoPoint> pathPoints;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
         //Handle permissions
         String[] permissions = {
+                Manifest.permission.READ_EXTERNAL_STORAGE,
                 Manifest.permission.WRITE_EXTERNAL_STORAGE,
                 Manifest.permission.ACCESS_FINE_LOCATION,
                 Manifest.permission.ACCESS_COARSE_LOCATION};
@@ -65,40 +71,33 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         //load/initialize the osmdroid configuration, this can be done
         Context ctx = getApplicationContext();
         Configuration.getInstance().load(ctx, PreferenceManager.getDefaultSharedPreferences(ctx));
-        //setting this before the layout is inflated is a good idea
-        //it 'should' ensure that the map has a writable location for the map cache, even without permissions
-        //if no tiles are displayed, you can try overriding the cache path using Configuration.getInstance().setCachePath
-        //see also StorageUtils
-        //note, the load method also sets the HTTP User Agent to your application's package name, abusing osm's tile servers will get you banned based on this string
-
         //inflate and create the map
         setContentView(R.layout.activity_main);
 
-
-
-        map = (MapView) findViewById(R.id.map);
+        //Load mapview
+        map = findViewById(R.id.map);
         map.setTileSource(TileSourceFactory.MAPNIK);
         map.setMultiTouchControls(true);
 
+        //Costa Rica's coords
         mapController = map.getController();
         mapController.setZoom(18.0);
         GeoPoint startPoint = new GeoPoint(9.934739, -84.087502);
         mapController.setCenter(startPoint);
 
+        //Access the GPS
         LocationManager locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
-
         if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED
                 && checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             return;
         }
-
         locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 5000, 0, this);
-
         Location location = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
         mapController.setCenter(new GeoPoint(location.getLatitude(), location.getLongitude()));
 
         loadStops();
         createRecyclerView();
+        setupMapLines();
     }
 
     @Override
@@ -147,8 +146,8 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
     @Override
     public void onLocationChanged(@NonNull Location location) {
         //Toast.makeText(this, location.getLatitude() +","+location.getLongitude(), Toast.LENGTH_SHORT).show();
-        if (map.getOverlays().size() > 1)
-            map.getOverlays().remove(1);
+        if (map.getOverlays().size() > 2)
+            map.getOverlays().remove(2);
         OverlayItem newItem = new OverlayItem("Here", "You are here", new GeoPoint(location));
         items.add(newItem);
         ItemizedIconOverlay<OverlayItem> myLocOverlay = new ItemizedIconOverlay<>(items,
@@ -166,11 +165,12 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
                 },
                 this);
         map.getOverlays().add(myLocOverlay);
-        mapController.setCenter(new GeoPoint(location.getLatitude(), location.getLongitude()));
+        GeoPoint currenLoc = new GeoPoint(location.getLatitude(), location.getLongitude());
+        mapController.setCenter(currenLoc);
 
-        String text = location.getLatitude()+","+ location.getLongitude();
+        String text = location.getLatitude() + "," + location.getLongitude();
         LocalDateTime now = LocalDateTime.now();
-        text += "- Time: "+ dtf.format(now);
+        text += "- Time: " + dtf.format(now);
         if (routeHelper.isStopClose(location.getLatitude(), location.getLongitude())) {
             Toast.makeText(this, "Estoy cerca de una parada", Toast.LENGTH_SHORT).show();
             text += "\n Parada cerca";
@@ -178,6 +178,8 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         }
         datos.add(text);
         adapter.notifyDataSetChanged();
+        pathPoints.add(currenLoc);
+        polyline.setPoints(pathPoints);
     }
 
     @Override
@@ -190,6 +192,9 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         LocationListener.super.onProviderDisabled(provider);
     }
 
+    /**
+     * Load the stops from a JSON file
+     */
     private void loadStops() {
         InputStream inputStream = getResources().openRawResource(R.raw.test_coords);
         ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
@@ -206,7 +211,7 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
 
         try {
             JSONObject routeData = new JSONObject(byteArrayOutputStream.toString());
-            JSONArray stops = routeData.getJSONArray("rutas");
+            JSONArray stops = routeData.getJSONArray(ROUTES);
             routeHelper = new RouteHelper(stops);
             displayStops();
             routeHelper.getNextStop();
@@ -216,6 +221,9 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
 
     }
 
+    /**
+     * Add a layer to the mapview with the stops
+     */
     private void displayStops() {
         ArrayList<OverlayItem> stops = new ArrayList<>();
         ArrayList<Pair<Double, Double>> stops_coords = routeHelper.getStopsCoords();
@@ -243,11 +251,24 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         map.getOverlays().add(myLocOverlay);
     }
 
-    private void createRecyclerView(){
-        RecyclerView recyclerView = (RecyclerView) findViewById(R.id.rv);
+    /**
+     * Create the recyclerView where the list of coords will be stored
+     */
+    private void createRecyclerView() {
+        RecyclerView recyclerView = findViewById(R.id.rv);
         adapter = new ListAdapter(datos);
         recyclerView.setHasFixedSize(true);
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
         recyclerView.setAdapter(adapter);
+    }
+
+    /**
+     * Setup polylines use to draw the route
+     */
+    private void setupMapLines() {
+        polyline = new Polyline();
+        pathPoints = new ArrayList<>();
+        polyline.setPoints(pathPoints);
+        map.getOverlays().add(polyline);
     }
 }
