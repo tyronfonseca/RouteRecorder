@@ -64,11 +64,13 @@ public class RouteHelper {
      * Get next stop in the list of stops
      */
     public void getNextStop() {
-        if (nextStopIndex >= 0) {
-            prevLat = getStopLat();
-            prevLon = getStopLon();
+        if (nextStopIndex < stopsCoords.size()) {
+            if (nextStopIndex >= 0) {
+                prevLat = getStopLat();
+                prevLon = getStopLon();
+            }
+            nextStopIndex++;
         }
-        nextStopIndex++;
     }
 
     /**
@@ -81,27 +83,31 @@ public class RouteHelper {
      * @return True is in the radius False otherwise
      */
     public boolean isStopClose(double currLat, double currLon) {
-        boolean isClose;
-        final double lat2 = getStopLat();
-        final double lon2 = getStopLon();
+        boolean isClose = false;
+        if (nextStopIndex < stopsCoords.size()) {
+            final double lat2 = getStopLat();
+            final double lon2 = getStopLon();
 
-        double piRadian = Math.PI / 180;
-        final double phi1 = currLat * piRadian;
-        final double phi2 = lat2 * piRadian;
-        final double deltaPhi = (lat2 - currLat) * piRadian;
-        final double deltaLambda = (lon2 - currLon) * piRadian;
-        final double a = Math.pow(Math.sin(deltaPhi / 2), 2.0)
-                + Math.cos(phi1) * Math.cos(phi2) * Math.pow(Math.sin(deltaLambda / 2), 2.0);
-        final double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        double earthRadius = 6371e3;
-        final double distance = earthRadius * c;
+            final double piRadian = Math.PI / 180;
+            final double earthRadius = 6371e3;
+            final double radius = 50.0;
 
-        double radius = 50.0;
-        isClose = distance <= radius;
+            final double phi1 = currLat * piRadian;
+            final double phi2 = lat2 * piRadian;
+            final double deltaPhi = (lat2 - currLat) * piRadian;
+            final double deltaLambda = (lon2 - currLon) * piRadian;
+            final double a = Math.pow(Math.sin(deltaPhi / 2), 2.0)
+                    + Math.cos(phi1) * Math.cos(phi2) * Math.pow(Math.sin(deltaLambda / 2), 2.0);
+            final double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
-        if (!isClose) {
-            //Verify if we passed a stop
-            isClose = hasPassedAStop(currLat, currLon);
+            final double distance = earthRadius * c;
+
+            isClose = distance <= radius;
+
+            if (!isClose) {
+                //Verify if we passed a stop
+                isClose = hasPassedAStop(currLat, currLon);
+            }
         }
 
         return isClose;
@@ -119,23 +125,29 @@ public class RouteHelper {
         boolean stopPassed;
         double nextLat;
         double nextLon;
+        double midLat = currLat;
+        double midLon = currLon;
+        double stopLat = getStopLat();
+        double stopLon = getStopLon();
         if (nextStopIndex + 1 <= stopsCoords.size() - 1) {
             nextLat = stopsCoords.get(nextStopIndex + 1).first;
             nextLon = stopsCoords.get(nextStopIndex + 1).second;
         } else {
-            //Is only one stop left in the list
-            nextLat = prevLat;
-            nextLon = prevLon;
+            //There is only one stop left in the list
+            nextLat = currLat;
+            nextLon = currLon;
+            midLat = stopLat;
+            midLon = stopLon;
+            stopLat = prevLat;
+            stopLon = prevLon;
         }
-        final double stopLat = getStopLat();
-        final double stopLon = getStopLon();
         final double minLat = Math.min(stopLat, nextLat);
         final double maxLat = Math.max(stopLat, nextLat);
         final double minLon = Math.min(stopLon, nextLon);
         final double maxLon = Math.max(stopLon, nextLon);
 
-        stopPassed = (minLat < currLat && currLat < maxLat) &&
-                (minLon < currLon && currLon < maxLon);
+        stopPassed = (minLat < midLat && midLat < maxLat) &&
+                (minLon < midLon && midLon < maxLon);
         return stopPassed;
     }
 }
