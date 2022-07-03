@@ -25,6 +25,9 @@ android {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
     }
+    testOptions {
+        unitTests.returnDefaultValues = true
+    }
 }
 
 dependencies {
@@ -38,5 +41,7 @@ dependencies {
 
     //Added
     implementation 'org.osmdroid:osmdroid-android:6.1.13'
+    //Testing
+    testImplementation 'org.json:json:20180813'
 
 }

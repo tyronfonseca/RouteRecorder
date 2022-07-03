@@ -19,6 +19,7 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.tf.routerrecorder.Adapters.ListAdapter;
+import com.tf.routerrecorder.Utils.JsonHelper;
 import com.tf.routerrecorder.Utils.RouteHelper;
 
 import static com.tf.routerrecorder.Utils.Constants.*;
@@ -41,6 +42,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 public class MainActivity extends AppCompatActivity implements LocationListener {
     private MapView map;
@@ -174,7 +176,6 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         if (routeHelper.isStopClose(location.getLatitude(), location.getLongitude())) {
             Toast.makeText(this, "Estoy cerca de una parada", Toast.LENGTH_SHORT).show();
             text += "\n Parada cerca";
-            routeHelper.getNextStop();
         }
         datos.add(text);
         adapter.notifyDataSetChanged();
@@ -196,29 +197,15 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
      * Load the stops from a JSON file
      */
     private void loadStops() {
-        InputStream inputStream = getResources().openRawResource(R.raw.test_coords);
-        ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-        int ctr;
+        JsonHelper jsonHelper = new JsonHelper(this);
         try {
-            ctr = inputStream.read();
-            while (ctr != -1) {
-                byteArrayOutputStream.write(ctr);
-                ctr = inputStream.read();
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-
-        try {
-            JSONObject routeData = new JSONObject(byteArrayOutputStream.toString());
+            JSONObject routeData = jsonHelper.getJsonObjectFromPath(R.raw.test_coords);
             JSONArray stops = routeData.getJSONArray(ROUTES);
             routeHelper = new RouteHelper(stops);
             displayStops();
-            routeHelper.getNextStop();
         } catch (Exception e) {
             e.printStackTrace();
         }
-
     }
 
     /**
@@ -226,11 +213,11 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
      */
     private void displayStops() {
         ArrayList<OverlayItem> stops = new ArrayList<>();
-        ArrayList<Pair<Double, Double>> stops_coords = routeHelper.getStopsCoords();
-        for (Pair<Double, Double> coords : stops_coords) {
+        ArrayList<List<Double>> stops_coords = routeHelper.getStopsCoords();
+        for (List<Double> coords : stops_coords) {
             OverlayItem newItem = new OverlayItem(
                     "Here", "You are here",
-                    new GeoPoint(coords.first, coords.second)
+                    new GeoPoint(coords.get(0), coords.get(1))
             );
             stops.add(newItem);
         }
@@ -263,7 +250,7 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
     }
 
     /**
-     * Setup polylines use to draw the route
+     * Setup polylines used to draw the route
      */
     private void setupMapLines() {
         polyline = new Polyline();
