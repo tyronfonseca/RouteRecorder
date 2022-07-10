@@ -1,16 +1,25 @@
 package com.tf.routerrecorder;
 
 import android.Manifest;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
+import android.net.Uri;
 import android.os.Bundle;
 import android.preference.PreferenceManager;
 import android.util.Pair;
+import android.view.Menu;
+import android.view.MenuInflater;
+import android.view.MenuItem;
 import android.widget.Toast;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
@@ -19,12 +28,14 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.tf.routerrecorder.Adapters.ListAdapter;
+import com.tf.routerrecorder.Services.ForegroundService;
 import com.tf.routerrecorder.Utils.JsonHelper;
 import com.tf.routerrecorder.Utils.RouteHelper;
 
 import static com.tf.routerrecorder.Utils.Constants.*;
 
 import org.json.JSONArray;
+import org.json.JSONException;
 import org.json.JSONObject;
 import org.osmdroid.api.IMapController;
 import org.osmdroid.config.Configuration;
@@ -38,6 +49,7 @@ import org.osmdroid.views.overlay.Polyline;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -47,11 +59,11 @@ import java.util.List;
 public class MainActivity extends AppCompatActivity implements LocationListener {
     private MapView map;
     private IMapController mapController;
-    private final ArrayList<OverlayItem> items = new ArrayList<>();
+    private ArrayList<OverlayItem> items = new ArrayList<>();
 
     private static final int REQUEST_PERMISSIONS_REQUEST_CODE = 1;
     private RouteHelper routeHelper;
-    private final ArrayList<String> datos = new ArrayList<>();
+    private ArrayList<String> datos = new ArrayList<>();
     private ListAdapter adapter;
     private final DateTimeFormatter dtf = DateTimeFormatter.ofPattern("HH:mm:ss");
 
@@ -67,7 +79,10 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
                 Manifest.permission.READ_EXTERNAL_STORAGE,
                 Manifest.permission.WRITE_EXTERNAL_STORAGE,
                 Manifest.permission.ACCESS_FINE_LOCATION,
-                Manifest.permission.ACCESS_COARSE_LOCATION};
+                Manifest.permission.ACCESS_COARSE_LOCATION,
+                Manifest.permission.ACCESS_BACKGROUND_LOCATION,
+                Manifest.permission.FOREGROUND_SERVICE
+        };
         requestPermissionsIfNecessary(permissions);
 
         //load/initialize the osmdroid configuration, this can be done
@@ -94,12 +109,14 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
             return;
         }
         locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 5000, 0, this);
+        //locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 5000, 0, this);
         Location location = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
         mapController.setCenter(new GeoPoint(location.getLatitude(), location.getLongitude()));
 
         loadStops();
         createRecyclerView();
         setupMapLines();
+        startService();
     }
 
     @Override
@@ -114,6 +131,68 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         super.onPause();
         //this will refresh the osmdroid configuration on resuming.
         map.onPause();  //needed for compass, my location overlays, v6.0.0 and up
+    }
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        MenuInflater inflater = getMenuInflater();
+        inflater.inflate(R.menu.main_menu, menu);
+        return true;
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        // Handle item selection
+        switch (item.getItemId()) {
+            case R.id.action_add:
+                loadJSON();
+                return true;
+            case R.id.action_clean:
+                routeHelper.resetRoute();
+                resetRoutes();
+                return true;
+            default:
+                return super.onOptionsItemSelected(item);
+        }
+    }
+
+    private void resetRoutes(){
+        items.clear();
+        pathPoints.clear();
+        datos.clear();
+        adapter.notifyDataSetChanged();
+        polyline = new Polyline();
+        if (map.getOverlays().size() > 2) {
+            map.getOverlays().remove(0);
+            map.getOverlays().remove(1);
+        }
+    }
+
+    ActivityResultLauncher<Intent> startActivityForResult = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            result -> {
+                if (result.getResultCode() == AppCompatActivity.RESULT_OK) {
+                    Uri data = result.getData().getData();
+                    try {
+                        InputStream inputStream = getContentResolver().openInputStream(data);
+                        JsonHelper jsonHelper = new JsonHelper();
+                        JSONObject routeData = jsonHelper.getJsonObject(inputStream);
+                        JSONArray stops = routeData.getJSONArray(ROUTES);
+                        routeHelper = new RouteHelper(stops);
+                        resetRoutes();
+                        displayStops();
+                    }catch (IOException | JSONException e){
+                        e.printStackTrace();
+                    }
+                }
+            }
+    );
+
+    private void loadJSON(){
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("application/json");
+        startActivityForResult.launch(intent);
     }
 
     @Override
@@ -147,10 +226,10 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
 
     @Override
     public void onLocationChanged(@NonNull Location location) {
-        //Toast.makeText(this, location.getLatitude() +","+location.getLongitude(), Toast.LENGTH_SHORT).show();
+        //Toast.makeText(this, location.getProvider(), Toast.LENGTH_SHORT).show();
         if (map.getOverlays().size() > 2)
             map.getOverlays().remove(2);
-        OverlayItem newItem = new OverlayItem("Here", "You are here", new GeoPoint(location));
+        OverlayItem newItem = new OverlayItem("Parada #"+items.size()+1, "You are here", new GeoPoint(location));
         items.add(newItem);
         ItemizedIconOverlay<OverlayItem> myLocOverlay = new ItemizedIconOverlay<>(items,
                 getResources().getDrawable(org.osmdroid.library.R.drawable.marker_default, null),
@@ -172,7 +251,7 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
 
         String text = location.getLatitude() + "," + location.getLongitude();
         LocalDateTime now = LocalDateTime.now();
-        text += "- Time: " + dtf.format(now);
+        text += "- Time: " + dtf.format(now) + " ("+location.getProvider()+")";
         if (routeHelper.isStopClose(location.getLatitude(), location.getLongitude())) {
             Toast.makeText(this, "Estoy cerca de una parada", Toast.LENGTH_SHORT).show();
             text += "\n Parada cerca";
@@ -182,6 +261,8 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         pathPoints.add(currenLoc);
         polyline.setPoints(pathPoints);
     }
+
+
 
     @Override
     public void onProviderEnabled(@NonNull String provider) {
@@ -212,6 +293,9 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
      * Add a layer to the mapview with the stops
      */
     private void displayStops() {
+        if (map.getOverlays().size() > 0) {
+            map.getOverlays().remove(0);
+        }
         ArrayList<OverlayItem> stops = new ArrayList<>();
         ArrayList<List<Double>> stops_coords = routeHelper.getStopsCoords();
         for (List<Double> coords : stops_coords) {
@@ -235,7 +319,7 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
                     }
                 },
                 this);
-        map.getOverlays().add(myLocOverlay);
+        map.getOverlays().add(0,myLocOverlay);
     }
 
     /**
@@ -257,5 +341,14 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         pathPoints = new ArrayList<>();
         polyline.setPoints(pathPoints);
         map.getOverlays().add(polyline);
+    }
+
+    /**
+     * Start a service so the app can update the location in the background
+     */
+    private void startService(){
+        Intent serviceIntent = new Intent(this, ForegroundService.class);
+        serviceIntent.putExtra(INTENT_NAME, "Foreground Service");
+        ContextCompat.startForegroundService(this, serviceIntent);
     }
 }

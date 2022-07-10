@@ -15,7 +15,6 @@ public class RouteHelper {
 
     private ArrayList<List<Double>> stopsCoords;
     private int nextStopIndex;
-    private double oldDistance = -1.0;
 
     public RouteHelper(JSONArray stops) {
         stopsCoords = new ArrayList<>();
@@ -113,10 +112,13 @@ public class RouteHelper {
             final double radius = 50.0;
 
             isClose = distance <= radius;
-            if (!isClose && distance > oldDistance) {
+            if (!isClose && nextStopIndex != 0 && nextStopIndex - 1 >= 0) {
                 //Verify if we passed a stop
-                if (oldDistance >= 0) {
-                    oldDistance = distance;
+                double prvLat  = stopsCoords.get(nextStopIndex-1).get(0);
+                double prvLon = stopsCoords.get(nextStopIndex-1).get(1);
+                double prvStpDstc = getDistance(currLat, currLon, prvLat, prvLon);
+                double distanceStops = getDistance(prvLat, prvLon, getStopLat(), getStopLon());
+                if(prvStpDstc > distance && distanceStops < prvStpDstc){
                     isClose = true;
                 }
             }
@@ -127,5 +129,12 @@ public class RouteHelper {
         }
 
         return isClose;
+    }
+
+    /**
+     * Reset the route count
+     */
+    public void resetRoute(){
+        nextStopIndex = 0;
     }
 }

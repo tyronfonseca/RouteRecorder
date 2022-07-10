@@ -141,8 +141,38 @@ public class RouteHelperUnitTest {
         assertFalse(isStopClose);
     }
 
-    //@TODO Test last coord
-    public void isStopClose_LastCoord_Works() {
+    @Test
+    public void isStopClose_Middle_Stop_False_Works() {
+        //arr
+        RouteHelper helper = new RouteHelper(test_json_array);
+        double lat = 9.952187268722609;
+        double lon = -84.0451642749949;
+
+        //act
+        helper.isStopClose(lat, lon);
+        boolean isStopClose = helper.isStopClose(9.952317377534321, -84.04522435047859);
+
+        //assert
+        assertFalse(isStopClose);
+    }
+
+    @Test
+    public void isStopClose_Middle2_Stop_False_Works() {
+        //arr
+        RouteHelper helper = new RouteHelper(test_json_array);
+        double lat = 9.952187268722609;
+        double lon = -84.0451642749949;
+
+        //act
+        helper.isStopClose(lat, lon);
+        boolean isStopClose = helper.isStopClose(9.952148299236745, -84.04510096869207);
+
+        //assert
+        assertFalse(isStopClose);
+    }
+
+    @Test
+    public void isStopClose_StopPassed_Works() {
         //arr
         JSONArray json_array = null;
         try {
@@ -157,8 +187,9 @@ public class RouteHelperUnitTest {
         RouteHelper helper = new RouteHelper(json_array);
         double lat_1 = 9.952187268722609;
         double lon_1 = -84.0451642749949;
-        double lat_2 = 9.950050897975803;
-        double lon_2 = -84.04390327366455;
+        // Coords a little far from the next stop
+        double lat_2 = 9.952016205677898;
+        double lon_2 = -84.04402808426009;
 
         //act
         helper.isStopClose(lat_1, lon_1);
