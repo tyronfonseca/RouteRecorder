@@ -26,8 +26,14 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
+import androidx.room.Room;
 
 import com.tf.routerrecorder.Adapters.ListAdapter;
+import com.tf.routerrecorder.Database.DAO.AgencyDao;
+import com.tf.routerrecorder.Database.DAO.AgencyRoutesDao;
+import com.tf.routerrecorder.Database.Entities.Agency;
+import com.tf.routerrecorder.Database.Entities.Route;
+import com.tf.routerrecorder.Database.Infrastructure.AppDatabase;
 import com.tf.routerrecorder.Services.ForegroundService;
 import com.tf.routerrecorder.Utils.JsonHelper;
 import com.tf.routerrecorder.Utils.RouteHelper;
@@ -69,6 +75,8 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
 
     private Polyline polyline;
     private ArrayList<GeoPoint> pathPoints;
+
+    AppDatabase db;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -117,6 +125,8 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         createRecyclerView();
         setupMapLines();
         startService();
+
+        createOrAccessDatabase();
     }
 
     @Override
@@ -350,5 +360,11 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         Intent serviceIntent = new Intent(this, ForegroundService.class);
         serviceIntent.putExtra(INTENT_NAME, "Foreground Service");
         ContextCompat.startForegroundService(this, serviceIntent);
+    }
+
+    private void createOrAccessDatabase(){
+        db = Room.databaseBuilder(getApplicationContext(),
+                AppDatabase.class, "gtfsRouteRecorder")
+                .allowMainThreadQueries().build();
     }
 }

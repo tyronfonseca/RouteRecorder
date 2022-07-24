@@ -41,6 +41,11 @@ dependencies {
 
     //Added
     implementation 'org.osmdroid:osmdroid-android:6.1.13'
+
+    def room_version = "2.4.2"
+    implementation "androidx.room:room-runtime:$room_version"
+    annotationProcessor "androidx.room:room-compiler:$room_version"
+
     //Testing
     testImplementation 'org.json:json:20180813'
 
