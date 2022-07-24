@@ -33,9 +33,9 @@ public class ForegroundService extends Service{
     public int onStartCommand(Intent intent, int flags, int startId) {
         String input = intent.getStringExtra(INTENT_NAME);
         createNotificationChannel();
-        Intent notificationIntent = new Intent(this, MainActivity.class);
-        PendingIntent pendingIntent = PendingIntent.getActivity(this,
-                0, notificationIntent, PendingIntent.FLAG_IMMUTABLE);
+        Intent notificationIntent = getPackageManager().getLaunchIntentForPackage(getPackageName());
+        PendingIntent pendingIntent = PendingIntent.getActivity(getApplicationContext(),
+                0, notificationIntent, PendingIntent.FLAG_UPDATE_CURRENT);
         Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setContentTitle("Foreground  - Route Recorder")
                 .setContentText(input)
@@ -48,7 +48,7 @@ public class ForegroundService extends Service{
 
     private void createNotificationChannel(){
         NotificationChannel channel = new NotificationChannel(CHANNEL_ID,
-                "Router Recorder", NotificationManager.IMPORTANCE_HIGH);
+                "Router Recorder", NotificationManager.IMPORTANCE_LOW);
         ((NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE)).createNotificationChannel(channel);
     }
 }
