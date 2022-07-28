@@ -41,6 +41,7 @@ dependencies {
 
     //Added
     implementation 'org.osmdroid:osmdroid-android:6.1.13'
+    implementation 'com.opencsv:opencsv:5.6'
 
     def room_version = "2.4.2"
     implementation "androidx.room:room-runtime:$room_version"

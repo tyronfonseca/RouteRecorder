@@ -2,7 +2,7 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
     <item
         android:id="@+id/action_add"
-        android:title="Cargar ruta">
+        android:title="Cargar GTFS (.zip)">
     </item>
     <item
         android:id="@+id/action_clean"

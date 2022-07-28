@@ -33,8 +33,10 @@ import com.tf.routerrecorder.Database.DAO.AgencyDao;
 import com.tf.routerrecorder.Database.DAO.AgencyRoutesDao;
 import com.tf.routerrecorder.Database.Entities.Agency;
 import com.tf.routerrecorder.Database.Entities.Route;
+import com.tf.routerrecorder.Database.Entities.Trips;
 import com.tf.routerrecorder.Database.Infrastructure.AppDatabase;
 import com.tf.routerrecorder.Services.ForegroundService;
+import com.tf.routerrecorder.Utils.GTFSLoader;
 import com.tf.routerrecorder.Utils.JsonHelper;
 import com.tf.routerrecorder.Utils.RouteHelper;
 
@@ -76,7 +78,8 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
     private Polyline polyline;
     private ArrayList<GeoPoint> pathPoints;
 
-    AppDatabase db;
+    private AppDatabase db;
+    private GTFSLoader gtfsLoader;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -127,6 +130,8 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         startService();
 
         createOrAccessDatabase();
+
+        gtfsLoader = new GTFSLoader(getApplicationContext());
     }
 
     @Override
@@ -155,7 +160,7 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         // Handle item selection
         switch (item.getItemId()) {
             case R.id.action_add:
-                loadJSON();
+                loadGTFS();
                 return true;
             case R.id.action_clean:
                 routeHelper.resetRoute();
@@ -164,6 +169,13 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
             default:
                 return super.onOptionsItemSelected(item);
         }
+    }
+
+    private void loadGTFS(){
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("application/zip");
+        startActivityGTFS.launch(intent);
     }
 
     private void resetRoutes(){
@@ -178,32 +190,22 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         }
     }
 
-    ActivityResultLauncher<Intent> startActivityForResult = registerForActivityResult(
+    ActivityResultLauncher<Intent> startActivityGTFS = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(),
             result -> {
                 if (result.getResultCode() == AppCompatActivity.RESULT_OK) {
                     Uri data = result.getData().getData();
                     try {
                         InputStream inputStream = getContentResolver().openInputStream(data);
-                        JsonHelper jsonHelper = new JsonHelper();
-                        JSONObject routeData = jsonHelper.getJsonObject(inputStream);
-                        JSONArray stops = routeData.getJSONArray(ROUTES);
-                        routeHelper = new RouteHelper(stops);
-                        resetRoutes();
-                        displayStops();
-                    }catch (IOException | JSONException e){
+                        gtfsLoader.loadZip(inputStream);
+                        //Update database
+                        updateDatabase();
+                    }catch (IOException e){
                         e.printStackTrace();
                     }
                 }
             }
     );
-
-    private void loadJSON(){
-        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-        intent.addCategory(Intent.CATEGORY_OPENABLE);
-        intent.setType("application/json");
-        startActivityForResult.launch(intent);
-    }
 
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
@@ -362,9 +364,27 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         ContextCompat.startForegroundService(this, serviceIntent);
     }
 
+    /**
+     * Create a database using Room
+     */
     private void createOrAccessDatabase(){
         db = Room.databaseBuilder(getApplicationContext(),
                 AppDatabase.class, "gtfsRouteRecorder")
                 .allowMainThreadQueries().build();
+    }
+
+    /**
+     * Load the data from the .txt extracted from the gtfs file (.zip)
+     * and load it to the database.
+     */
+    private void updateDatabase(){
+        ArrayList<Agency> agencies = gtfsLoader.getAgencies();
+        ArrayList<Route> routes = gtfsLoader.getRoutes();
+        ArrayList<Trips> trips = gtfsLoader.getTrips();
+
+        //Save in the database
+        db.agencyDao().insertAllAgencies(agencies);
+        db.routeDao().insertAllRoutes(routes);
+        db.tripsDao().insertAllTrips(trips);
     }
 }

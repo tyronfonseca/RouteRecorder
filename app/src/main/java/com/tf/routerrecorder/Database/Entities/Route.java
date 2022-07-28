@@ -34,4 +34,18 @@ public class Route {
 
     @ColumnInfo(name = "agency_id")
     public String agency_id;
+
+    public Route(){
+    }
+    public Route (String[] item){
+        route_id = item[0];
+        agency_id = item[1];
+        shortName = item[2];
+        longName = item[3];
+        description = item[4];
+        type = Short.parseShort(item[5]);
+        url = item[6];
+        color = item[7];
+        text_color = item[8];
+    }
 }

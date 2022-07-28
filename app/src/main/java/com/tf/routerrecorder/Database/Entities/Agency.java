@@ -3,6 +3,7 @@ package com.tf.routerrecorder.Database.Entities;
 import androidx.annotation.NonNull;
 import androidx.room.ColumnInfo;
 import androidx.room.Entity;
+import androidx.room.Ignore;
 import androidx.room.PrimaryKey;
 
 @Entity
@@ -31,4 +32,17 @@ public class Agency {
 
     @ColumnInfo(name = "agency_email")
     public String email;
+
+    public Agency(){
+    }
+    public Agency (String[] item){
+        agency_id = item[0];
+        name = item[1];
+        url = item[2];
+        timezone = item[3];
+        lang = item[4];
+        phone = item[5];
+        fareUrl = item[6];
+        email = item[7];
+    }
 }
