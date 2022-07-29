@@ -2,14 +2,14 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
     <item
         android:id="@+id/action_add"
-        android:title="Cargar GTFS (.zip)">
+        android:title="@string/cargar_gtfs_zip">
     </item>
     <item
         android:id="@+id/action_select"
-        android:title="Seleccionar ruta">
+        android:title="@string/seleccionar_ruta">
     </item>
     <item
         android:id="@+id/action_clean"
-        android:title="Limpiar ruta">
+        android:title="@string/limpiar_ruta">
     </item>
 </menu>

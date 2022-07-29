@@ -2,8 +2,6 @@ package com.tf.routerrecorder;
 
 import android.Manifest;
 import android.app.AlertDialog;
-import android.app.NotificationChannel;
-import android.app.NotificationManager;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
@@ -14,8 +12,6 @@ import android.location.LocationManager;
 import android.net.Uri;
 import android.os.Bundle;
 import android.preference.PreferenceManager;
-import android.util.Pair;
-import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
@@ -36,9 +32,8 @@ import androidx.recyclerview.widget.RecyclerView;
 import androidx.room.Room;
 
 import com.tf.routerrecorder.Adapters.ListAdapter;
-import com.tf.routerrecorder.Database.DAO.AgencyDao;
-import com.tf.routerrecorder.Database.DAO.AgencyRoutesDao;
 import com.tf.routerrecorder.Database.Entities.Agency;
+import com.tf.routerrecorder.Database.Entities.RRData;
 import com.tf.routerrecorder.Database.Entities.Route;
 import com.tf.routerrecorder.Database.Entities.Trips;
 import com.tf.routerrecorder.Database.Infrastructure.AppDatabase;
@@ -50,7 +45,6 @@ import com.tf.routerrecorder.Utils.RouteHelper;
 import static com.tf.routerrecorder.Utils.Constants.*;
 
 import org.json.JSONArray;
-import org.json.JSONException;
 import org.json.JSONObject;
 import org.osmdroid.api.IMapController;
 import org.osmdroid.config.Configuration;
@@ -61,12 +55,8 @@ import org.osmdroid.views.overlay.ItemizedIconOverlay;
 import org.osmdroid.views.overlay.OverlayItem;
 import org.osmdroid.views.overlay.Polyline;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.URI;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -74,13 +64,12 @@ import java.util.List;
 public class MainActivity extends AppCompatActivity implements LocationListener {
     private MapView map;
     private IMapController mapController;
-    private ArrayList<OverlayItem> items = new ArrayList<>();
+    private final ArrayList<OverlayItem> items = new ArrayList<>();
 
     private static final int REQUEST_PERMISSIONS_REQUEST_CODE = 1;
     private RouteHelper routeHelper;
-    private ArrayList<String> datos = new ArrayList<>();
+    private final ArrayList<String> datos = new ArrayList<>();
     private ListAdapter adapter;
-    private final DateTimeFormatter dtf = DateTimeFormatter.ofPattern("HH:mm:ss");
 
     private Polyline polyline;
     private ArrayList<GeoPoint> pathPoints;
@@ -258,7 +247,6 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
 
     @Override
     public void onLocationChanged(@NonNull Location location) {
-        //Toast.makeText(this, location.getProvider(), Toast.LENGTH_SHORT).show();
         if (map.getOverlays().size() > 2)
             map.getOverlays().remove(2);
         OverlayItem newItem = new OverlayItem("Parada #"+items.size()+1, "You are here", new GeoPoint(location));
@@ -278,23 +266,31 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
                 },
                 this);
         map.getOverlays().add(myLocOverlay);
-        GeoPoint currenLoc = new GeoPoint(location.getLatitude(), location.getLongitude());
-        mapController.setCenter(currenLoc);
+        GeoPoint currentLoc = new GeoPoint(location.getLatitude(), location.getLongitude());
+        mapController.setCenter(currentLoc);
 
-        String text = location.getLatitude() + "," + location.getLongitude();
-        LocalDateTime now = LocalDateTime.now();
-        text += "- Time: " + dtf.format(now) + " ("+location.getProvider()+")";
+        //Save in database
+        RRData newRRData = new RRData();
+        newRRData.unix_time = System.currentTimeMillis()/1000;
+        newRRData.lat = location.getLatitude();
+        newRRData.lon = location.getLongitude();
+        newRRData.route_id = route_id;
+
+        String text = newRRData.getSummary(location.getProvider());
         if (routeHelper.isStopClose(location.getLatitude(), location.getLongitude())) {
             Toast.makeText(this, "Estoy cerca de una parada", Toast.LENGTH_SHORT).show();
             text += "\n Parada cerca";
+            //Is a stop
+            newRRData.stop_id = "test";
         }
+        db.rrDataDao().insertRRData(newRRData);
+
+        //Update UI
         datos.add(text);
         adapter.notifyDataSetChanged();
-        pathPoints.add(currenLoc);
+        pathPoints.add(currentLoc);
         polyline.setPoints(pathPoints);
     }
-
-
 
     @Override
     public void onProviderEnabled(@NonNull String provider) {

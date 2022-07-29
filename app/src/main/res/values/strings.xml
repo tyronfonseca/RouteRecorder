@@ -1,3 +1,8 @@
 <resources>
     <string name="app_name">Router Recorder</string>
+    <string name="ruta">Ruta</string>
+    <string name="agencia">Agencia</string>
+    <string name="seleccionar_ruta">Seleccionar ruta</string>
+    <string name="cargar_gtfs_zip">Cargar GTFS (.zip)</string>
+    <string name="limpiar_ruta">Limpiar ruta</string>
 </resources>
