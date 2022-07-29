@@ -1,5 +1,6 @@
 package com.tf.routerrecorder.Database.DAO;
 
+import androidx.lifecycle.LiveData;
 import androidx.room.Dao;
 import androidx.room.Delete;
 import androidx.room.Insert;
@@ -28,4 +29,7 @@ public interface  RouteDao {
 
     @Delete
     void delete(Route route);
+
+    @Query("Select route_id FROM route WHERE agency_id = :agency")
+    List<String> getRoutesIdByAgency(String agency);
 }

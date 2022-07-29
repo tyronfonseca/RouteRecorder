@@ -5,6 +5,10 @@
         android:title="Cargar GTFS (.zip)">
     </item>
     <item
+        android:id="@+id/action_select"
+        android:title="Seleccionar ruta">
+    </item>
+    <item
         android:id="@+id/action_clean"
         android:title="Limpiar ruta">
     </item>

@@ -1,9 +1,11 @@
 package com.tf.routerrecorder;
 
 import android.Manifest;
+import android.app.AlertDialog;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.location.Location;
@@ -13,9 +15,14 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.preference.PreferenceManager;
 import android.util.Pair;
+import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
+import android.view.View;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
+import android.widget.Spinner;
 import android.widget.Toast;
 
 import androidx.activity.result.ActivityResultLauncher;
@@ -81,6 +88,15 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
     private AppDatabase db;
     private GTFSLoader gtfsLoader;
 
+    // Use by the AlertDialog
+    private AlertDialog dialog;
+    private String route_id;
+    private String agency_id;
+    private List<String>  routes;
+    private List<String>  agencies;
+    private ArrayAdapter<String> routeAdapter;
+    private ArrayAdapter<String> agencyAdapter;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -132,6 +148,7 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         createOrAccessDatabase();
 
         gtfsLoader = new GTFSLoader(getApplicationContext());
+        setupDialog();
     }
 
     @Override
@@ -165,6 +182,9 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
             case R.id.action_clean:
                 routeHelper.resetRoute();
                 resetRoutes();
+                return true;
+            case R.id.action_select:
+                selectRoute();
                 return true;
             default:
                 return super.onOptionsItemSelected(item);
@@ -371,6 +391,10 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         db = Room.databaseBuilder(getApplicationContext(),
                 AppDatabase.class, "gtfsRouteRecorder")
                 .allowMainThreadQueries().build();
+
+        //TODO Remove
+        String[] item = {"TFA","Transportes-Tyron","S","S","S","S","S","S"};
+        db.agencyDao().insertAgency(new Agency(item));
     }
 
     /**
@@ -386,5 +410,84 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         db.agencyDao().insertAllAgencies(agencies);
         db.routeDao().insertAllRoutes(routes);
         db.tripsDao().insertAllTrips(trips);
+
+    }
+
+    /**
+     * Create the AlertDialog to change the Stops
+     */
+    private void setupDialog(){
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setMessage("Seleccione la Agencia, luego la Ruta y presione Cargar paradas")
+                .setTitle("Cambiar paradas");
+
+        View layout = getLayoutInflater().inflate(R.layout.dialog_select_route, null);
+
+        //Add custom view to dialog
+        Spinner agencySpinner = layout.findViewById(R.id.spinner_agency);
+        Spinner routeSpinner = layout.findViewById(R.id.spinner_route);
+
+        // Select agency
+        agencies = db.agencyDao().getIdAll();
+        agencyAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, agencies);
+        agencyAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        agencySpinner.setAdapter(agencyAdapter);
+        agencySpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> adapterView, View view, int i, long l) {
+                agency_id = adapterView.getItemAtPosition(i).toString();
+                //Repopulate the route list
+                routes = db.routeDao().getRoutesIdByAgency(agency_id);
+                routeAdapter.clear();
+                for(String s : routes){
+                    routeAdapter.add(s);
+                }
+                routeAdapter.notifyDataSetChanged();
+            }
+            @Override
+            public void onNothingSelected(AdapterView<?> adapterView) {}
+        });
+
+        // Select route
+        agency_id = agencies.size() > 0 ? agencies.get(0) : "x";
+        routes = db.routeDao().getRoutesIdByAgency(agency_id);
+        routeAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, routes);
+        routeAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        routeSpinner.setAdapter(routeAdapter);
+        routeSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> adapterView, View view, int i, long l) {
+                route_id = adapterView.getItemAtPosition(i).toString();
+            }
+            @Override
+            public void onNothingSelected(AdapterView<?> adapterView) {}
+        });
+        builder.setView(layout);
+
+        //buttons
+        builder.setPositiveButton("Cargar paradas", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialogInterface, int i) {
+                //TODO Cargar paradas segun el route_id
+                Toast.makeText(getApplicationContext(), "Nuevas paradas cargadas",
+                                Toast.LENGTH_SHORT).show();
+            }
+        });
+
+        builder.setNegativeButton("Cerrar", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialogInterface, int i) {
+                dialog.hide();
+            }
+        });
+
+        dialog = builder.create();
+    }
+
+    /**
+     * Display the Alertdialog to select new stops
+     */
+    private void selectRoute(){
+        dialog.show();
     }
 }

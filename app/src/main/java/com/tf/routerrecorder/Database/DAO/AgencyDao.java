@@ -16,6 +16,9 @@ public interface AgencyDao {
     @Query("SELECT * FROM agency")
     List<Agency> getAll();
 
+    @Query("SELECT agency_id FROM agency")
+    List<String> getIdAll();
+
     @Query("SELECT * FROM Agency WHERE agency_id IN (:AgencyIds)")
     List<Agency> loadAllByIds(int[] AgencyIds);
 
@@ -27,5 +30,8 @@ public interface AgencyDao {
 
     @Delete
     void delete(Agency agency);
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    void insertAgency(Agency agency);
 }
 
