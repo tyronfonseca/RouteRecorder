@@ -17,7 +17,7 @@ public interface RRDataDao {
     List<RRData> getAll();
 
     @Query("SELECT * FROM RRData WHERE unix_time BETWEEN :begin_time AND :end_time")
-    List<RRData> getByRange(int begin_time, int end_time);
+    List<RRData> getByRange(long begin_time, long end_time);
 
     @Query("SELECT * FROM RRData WHERE unix_time = :id LIMIT 1")
     RRData findById(String id);

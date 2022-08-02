@@ -18,6 +18,7 @@ import android.view.MenuItem;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
+import android.widget.Button;
 import android.widget.Spinner;
 import android.widget.Toast;
 
@@ -38,6 +39,8 @@ import com.tf.routerrecorder.Database.Entities.Route;
 import com.tf.routerrecorder.Database.Entities.Trips;
 import com.tf.routerrecorder.Database.Infrastructure.AppDatabase;
 import com.tf.routerrecorder.Services.ForegroundService;
+import com.tf.routerrecorder.Utils.DateTimePicker;
+import com.tf.routerrecorder.Utils.GTFSExporter;
 import com.tf.routerrecorder.Utils.GTFSLoader;
 import com.tf.routerrecorder.Utils.JsonHelper;
 import com.tf.routerrecorder.Utils.RouteHelper;
@@ -175,6 +178,9 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
             case R.id.action_select:
                 selectRoute();
                 return true;
+            case R.id.action_export:
+                exportData();
+                return true;
             default:
                 return super.onOptionsItemSelected(item);
         }
@@ -247,25 +253,6 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
 
     @Override
     public void onLocationChanged(@NonNull Location location) {
-        if (map.getOverlays().size() > 2)
-            map.getOverlays().remove(2);
-        OverlayItem newItem = new OverlayItem("Parada #"+items.size()+1, "You are here", new GeoPoint(location));
-        items.add(newItem);
-        ItemizedIconOverlay<OverlayItem> myLocOverlay = new ItemizedIconOverlay<>(items,
-                getResources().getDrawable(org.osmdroid.library.R.drawable.marker_default, null),
-                new ItemizedIconOverlay.OnItemGestureListener<OverlayItem>() {
-                    @Override
-                    public boolean onItemSingleTapUp(int index, OverlayItem item) {
-                        return false;
-                    }
-
-                    @Override
-                    public boolean onItemLongPress(int index, OverlayItem item) {
-                        return false;
-                    }
-                },
-                this);
-        map.getOverlays().add(myLocOverlay);
         GeoPoint currentLoc = new GeoPoint(location.getLatitude(), location.getLongitude());
         mapController.setCenter(currentLoc);
 
@@ -278,6 +265,25 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
 
         String text = newRRData.getSummary(location.getProvider());
         if (routeHelper.isStopClose(location.getLatitude(), location.getLongitude())) {
+            if (map.getOverlays().size() > 2)
+                map.getOverlays().remove(2);
+            OverlayItem newItem = new OverlayItem("Parada #"+items.size()+1, "You are here", new GeoPoint(location));
+            items.add(newItem);
+            ItemizedIconOverlay<OverlayItem> myLocOverlay = new ItemizedIconOverlay<>(items,
+                    getResources().getDrawable(org.osmdroid.library.R.drawable.marker_default, null),
+                    new ItemizedIconOverlay.OnItemGestureListener<OverlayItem>() {
+                        @Override
+                        public boolean onItemSingleTapUp(int index, OverlayItem item) {
+                            return false;
+                        }
+
+                        @Override
+                        public boolean onItemLongPress(int index, OverlayItem item) {
+                            return false;
+                        }
+                    },
+                    this);
+            map.getOverlays().add(myLocOverlay);
             Toast.makeText(this, "Estoy cerca de una parada", Toast.LENGTH_SHORT).show();
             text += "\n Parada cerca";
             //Is a stop
@@ -485,5 +491,61 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
      */
     private void selectRoute(){
         dialog.show();
+    }
+
+    /**
+     * Export the data to a .txt saved in the Download directory
+     */
+    private void exportData(){
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setMessage("Seleccione la fecha de inicio y la fecha de final")
+                .setTitle("Exportar datos de GPS");
+        View layout = getLayoutInflater().inflate(R.layout.dialog_export_data, null);
+
+        Button start_btn = layout.findViewById(R.id.start_btn);
+        Button end_btn = layout.findViewById(R.id.end_btn);
+
+        long[] start_dt = {0};
+        long[] end_dt = {0};
+        DateTimePicker start_dt_picker = new DateTimePicker(MainActivity.this);
+        DateTimePicker end_dt_picker = new DateTimePicker(MainActivity.this);
+
+        start_btn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                start_dt_picker.getDatetime(start_btn);
+            }
+        });
+
+        end_btn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                end_dt_picker.getDatetime(end_btn);
+            }
+        });
+        builder.setView(layout);
+
+        //buttons
+        builder.setPositiveButton("Exportar datos", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialogInterface, int i) {
+                end_dt[0] = end_dt_picker.getEpochTime();
+                start_dt[0] = start_dt_picker.getEpochTime();
+                List<RRData> data = db.rrDataDao().getByRange(start_dt[0], end_dt[0]);
+                GTFSExporter exporter = new GTFSExporter();
+                exporter.exportRRData(data);
+                Toast.makeText(getApplicationContext(),
+                        "Datos exportados en la carpeta de Descargas",
+                        Toast.LENGTH_SHORT).show();
+            }
+        });
+
+        builder.setNegativeButton("Cerrar", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialogInterface, int i) {
+                dialogInterface.dismiss();
+            }
+        });
+        builder.show();
     }
 }

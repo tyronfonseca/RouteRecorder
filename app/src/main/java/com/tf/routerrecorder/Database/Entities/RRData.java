@@ -6,6 +6,8 @@ import androidx.room.PrimaryKey;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 public class RRData {
@@ -20,8 +22,6 @@ public class RRData {
 
     @Ignore
     private final DateTimeFormatter dtf = DateTimeFormatter.ofPattern("HH:mm:ss");
-    @Ignore
-    private final String SEPARATOR = ",";
 
     @Ignore
     public String getSummary(String provider){
@@ -33,14 +33,14 @@ public class RRData {
     }
 
     @Ignore
-    public String getCSVRow(){
-        String csvRow = "";
+    public String[] getCSVRow(){
+        String[] csvRow = new String[5];
 
-        csvRow += unix_time + SEPARATOR;
-        csvRow += lat + SEPARATOR;
-        csvRow += lon + SEPARATOR;
-        csvRow += stop_id + SEPARATOR;
-        csvRow += route_id + "\n";
+        csvRow[0] = String.valueOf(unix_time);
+        csvRow[1] = String.valueOf(lat);
+        csvRow[2] = String.valueOf(lon);
+        csvRow[3] = stop_id;
+        csvRow[4] = route_id;
 
         return csvRow;
     }

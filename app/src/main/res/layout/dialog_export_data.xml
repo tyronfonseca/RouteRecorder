@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <TextView
+        android:id="@+id/start_tx"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/start_datetime" />
+
+    <Button
+        android:id="@+id/start_btn"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/start_datetime" />
+
+    <TextView
+        android:id="@+id/end_tx"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/end_datetime" />
+
+    <Button
+        android:id="@+id/end_btn"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/end_datetime" />
+</LinearLayout>
