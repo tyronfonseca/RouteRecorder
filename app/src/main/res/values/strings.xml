@@ -8,4 +8,5 @@
     <string name="exportar_datos">Exportar datos</string>
     <string name="start_datetime">Start datetime</string>
     <string name="end_datetime">End datetime</string>
+    <string name="detener_grabacion">Detener grabacion</string>
 </resources>

@@ -37,4 +37,19 @@ public class Stops {
 
     @ColumnInfo(name = "wheelchair_boarding")
     public int wheelchairBoarding;
+
+    public Stops(){
+    }
+    public Stops (String[] item){
+        stop_id = item[0];
+        name = item[1];
+        description = item[2];
+        lat = item[3].isEmpty() ? 0 : Double.parseDouble(item[3]);
+        lon = item[4].isEmpty() ? 0 : Double.parseDouble(item[4]);
+        zoneId = item[5];
+        url = item[6];
+        locationType = item[7].isEmpty() ? 0 :Integer.parseInt(item[7]);
+        parentStation = item[8];
+        wheelchairBoarding = item[9].isEmpty() ? 0 : Integer.parseInt(item[9]);
+    }
 }

@@ -8,6 +8,7 @@ import com.opencsv.CSVReaderBuilder;
 import com.opencsv.exceptions.CsvException;
 import com.tf.routerrecorder.Database.Entities.Agency;
 import com.tf.routerrecorder.Database.Entities.Route;
+import com.tf.routerrecorder.Database.Entities.Stops;
 import com.tf.routerrecorder.Database.Entities.Trips;
 
 import java.io.File;
@@ -23,9 +24,10 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
 public class GTFSLoader {
-    private final String STOPS = "agency.txt";
+    private final String AGENCY = "agency.txt";
     private final String ROUTES = "routes.txt";
     private final String TRIPS = "trips.txt";
+    private final String STOPS = "stops.txt";
 
     private Context context;
 
@@ -91,7 +93,7 @@ public class GTFSLoader {
     public ArrayList<Agency> getAgencies(){
         CSVReader reader = null;
         try {
-            reader = getCSVReaderByName(STOPS);
+            reader = getCSVReaderByName(AGENCY);
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -159,4 +161,28 @@ public class GTFSLoader {
         return list;
     }
 
+    /**
+     * Get and array of all the Trips in the trips.txt file
+     * @return Array of Trips objects
+     */
+    public ArrayList<Stops> getStops(){
+        CSVReader reader = null;
+        try {
+            reader = getCSVReaderByName(STOPS);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        ArrayList<Stops> list = new ArrayList<>();
+        try {
+            List<String[]> items = reader.readAll();
+            for(String[] item : items){
+                list.add(new Stops(item));
+            }
+
+        }catch (CsvException | IOException ex){
+            ex.printStackTrace();
+        }
+        return list;
+    }
 }

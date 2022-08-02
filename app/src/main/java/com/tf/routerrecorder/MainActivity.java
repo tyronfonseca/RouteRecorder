@@ -32,23 +32,21 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.room.Room;
 
+import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.tf.routerrecorder.Adapters.ListAdapter;
 import com.tf.routerrecorder.Database.Entities.Agency;
 import com.tf.routerrecorder.Database.Entities.RRData;
 import com.tf.routerrecorder.Database.Entities.Route;
+import com.tf.routerrecorder.Database.Entities.Stops;
 import com.tf.routerrecorder.Database.Entities.Trips;
 import com.tf.routerrecorder.Database.Infrastructure.AppDatabase;
 import com.tf.routerrecorder.Services.ForegroundService;
 import com.tf.routerrecorder.Utils.DateTimePicker;
 import com.tf.routerrecorder.Utils.GTFSExporter;
 import com.tf.routerrecorder.Utils.GTFSLoader;
-import com.tf.routerrecorder.Utils.JsonHelper;
 import com.tf.routerrecorder.Utils.RouteHelper;
-
 import static com.tf.routerrecorder.Utils.Constants.*;
 
-import org.json.JSONArray;
-import org.json.JSONObject;
 import org.osmdroid.api.IMapController;
 import org.osmdroid.config.Configuration;
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory;
@@ -73,6 +71,8 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
     private RouteHelper routeHelper;
     private final ArrayList<String> datos = new ArrayList<>();
     private ListAdapter adapter;
+    FloatingActionButton stopRecord;
+    private boolean isRecording = false;
 
     private Polyline polyline;
     private ArrayList<GeoPoint> pathPoints;
@@ -132,15 +132,25 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         Location location = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
         mapController.setCenter(new GeoPoint(location.getLatitude(), location.getLongitude()));
 
+        createOrAccessDatabase();
+
         loadStops();
         createRecyclerView();
         setupMapLines();
         startService();
 
-        createOrAccessDatabase();
-
         gtfsLoader = new GTFSLoader(getApplicationContext());
         setupDialog();
+
+        stopRecord = findViewById(R.id.stop_fab);
+        stopRecord.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                stopRecord.hide();
+                isRecording = false;
+            }
+        });
+
     }
 
     @Override
@@ -253,49 +263,51 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
 
     @Override
     public void onLocationChanged(@NonNull Location location) {
-        GeoPoint currentLoc = new GeoPoint(location.getLatitude(), location.getLongitude());
-        mapController.setCenter(currentLoc);
+        if(isRecording) {
+            GeoPoint currentLoc = new GeoPoint(location.getLatitude(), location.getLongitude());
+            mapController.setCenter(currentLoc);
 
-        //Save in database
-        RRData newRRData = new RRData();
-        newRRData.unix_time = System.currentTimeMillis()/1000;
-        newRRData.lat = location.getLatitude();
-        newRRData.lon = location.getLongitude();
-        newRRData.route_id = route_id;
+            //Save in database
+            RRData newRRData = new RRData();
+            newRRData.unix_time = System.currentTimeMillis() / 1000;
+            newRRData.lat = location.getLatitude();
+            newRRData.lon = location.getLongitude();
+            newRRData.route_id = route_id;
 
-        String text = newRRData.getSummary(location.getProvider());
-        if (routeHelper.isStopClose(location.getLatitude(), location.getLongitude())) {
-            if (map.getOverlays().size() > 2)
-                map.getOverlays().remove(2);
-            OverlayItem newItem = new OverlayItem("Parada #"+items.size()+1, "You are here", new GeoPoint(location));
-            items.add(newItem);
-            ItemizedIconOverlay<OverlayItem> myLocOverlay = new ItemizedIconOverlay<>(items,
-                    getResources().getDrawable(org.osmdroid.library.R.drawable.marker_default, null),
-                    new ItemizedIconOverlay.OnItemGestureListener<OverlayItem>() {
-                        @Override
-                        public boolean onItemSingleTapUp(int index, OverlayItem item) {
-                            return false;
-                        }
+            String text = newRRData.getSummary(location.getProvider());
+            if (routeHelper.isStopClose(location.getLatitude(), location.getLongitude())) {
+                if (map.getOverlays().size() > 2)
+                    map.getOverlays().remove(2);
+                OverlayItem newItem = new OverlayItem("Parada #" + items.size() + 1, "You are here", new GeoPoint(location));
+                items.add(newItem);
+                ItemizedIconOverlay<OverlayItem> myLocOverlay = new ItemizedIconOverlay<>(items,
+                        getResources().getDrawable(org.osmdroid.library.R.drawable.marker_default, null),
+                        new ItemizedIconOverlay.OnItemGestureListener<OverlayItem>() {
+                            @Override
+                            public boolean onItemSingleTapUp(int index, OverlayItem item) {
+                                return false;
+                            }
 
-                        @Override
-                        public boolean onItemLongPress(int index, OverlayItem item) {
-                            return false;
-                        }
-                    },
-                    this);
-            map.getOverlays().add(myLocOverlay);
-            Toast.makeText(this, "Estoy cerca de una parada", Toast.LENGTH_SHORT).show();
-            text += "\n Parada cerca";
-            //Is a stop
-            newRRData.stop_id = "test";
+                            @Override
+                            public boolean onItemLongPress(int index, OverlayItem item) {
+                                return false;
+                            }
+                        },
+                        this);
+                map.getOverlays().add(myLocOverlay);
+                Toast.makeText(this, "Estoy cerca de una parada", Toast.LENGTH_SHORT).show();
+                text += "\n Parada cerca";
+                //Is a stop
+                newRRData.stop_id = "test";
+            }
+            db.rrDataDao().insertRRData(newRRData);
+
+            //Update UI
+            datos.add(text);
+            adapter.notifyDataSetChanged();
+            pathPoints.add(currentLoc);
+            polyline.setPoints(pathPoints);
         }
-        db.rrDataDao().insertRRData(newRRData);
-
-        //Update UI
-        datos.add(text);
-        adapter.notifyDataSetChanged();
-        pathPoints.add(currentLoc);
-        polyline.setPoints(pathPoints);
     }
 
     @Override
@@ -309,18 +321,12 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
     }
 
     /**
-     * Load the stops from a JSON file
+     * Load the stops from the database
      */
     private void loadStops() {
-        JsonHelper jsonHelper = new JsonHelper(this);
-        try {
-            JSONObject routeData = jsonHelper.getJsonObjectFromPath(R.raw.test_coords);
-            JSONArray stops = routeData.getJSONArray(ROUTES);
-            routeHelper = new RouteHelper(stops);
-            displayStops();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        List<Stops> stops = db.stopsDao().getAll();
+        routeHelper = new RouteHelper(stops);
+        displayStops();
     }
 
     /**
@@ -331,7 +337,7 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
             map.getOverlays().remove(0);
         }
         ArrayList<OverlayItem> stops = new ArrayList<>();
-        ArrayList<List<Double>> stops_coords = routeHelper.getStopsCoords();
+        ArrayList<List<Double>> stops_coords = routeHelper.getStopsList();
         for (List<Double> coords : stops_coords) {
             OverlayItem newItem = new OverlayItem(
                     "Here", "You are here",
@@ -407,12 +413,13 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         ArrayList<Agency> agencies = gtfsLoader.getAgencies();
         ArrayList<Route> routes = gtfsLoader.getRoutes();
         ArrayList<Trips> trips = gtfsLoader.getTrips();
+        ArrayList<Stops> stops = gtfsLoader.getStops();
 
         //Save in the database
         db.agencyDao().insertAllAgencies(agencies);
         db.routeDao().insertAllRoutes(routes);
         db.tripsDao().insertAllTrips(trips);
-
+        db.stopsDao().insertAllStops(stops);
     }
 
     /**
@@ -473,6 +480,8 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
                 //TODO Cargar paradas segun el route_id
                 Toast.makeText(getApplicationContext(), "Nuevas paradas cargadas",
                                 Toast.LENGTH_SHORT).show();
+                isRecording = true;
+                stopRecord.show();
             }
         });
 

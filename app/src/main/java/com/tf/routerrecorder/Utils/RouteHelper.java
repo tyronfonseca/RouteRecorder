@@ -1,37 +1,19 @@
 package com.tf.routerrecorder.Utils;
 
-
-import static com.tf.routerrecorder.Utils.Constants.*;
-
-import android.util.Log;
-
-import org.json.JSONArray;
-import org.json.JSONObject;
+import com.tf.routerrecorder.Database.Entities.Stops;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 public class RouteHelper {
 
-    private ArrayList<List<Double>> stopsCoords;
+    private List<Stops> stopsList;
     private int nextStopIndex;
 
-    public RouteHelper(JSONArray stops) {
-        stopsCoords = new ArrayList<>();
+    public RouteHelper(List<Stops> stops) {
+        stopsList = stops;
         nextStopIndex = 0;
-        try {
-            for (int i = 0; i < stops.length(); i++) {
-                JSONObject stop = stops.getJSONObject(i);
-                double lat = stop.getDouble(LATITUDE);
-                double lon = stop.getDouble(LONGITUDE);
-                List<Double> pair = new ArrayList<>();
-                pair.add(lat);
-                pair.add(lon);
-                stopsCoords.add(pair);
-            }
-        } catch (Exception e) {
-            Log.e(DEBUG_TAG, ERROR_JSON_CONS);
-        }
     }
 
     /**
@@ -40,7 +22,7 @@ public class RouteHelper {
      * @return Latitude of the next stop
      */
     public double getStopLat() {
-        return stopsCoords.get(nextStopIndex).get(0);
+        return stopsList.get(nextStopIndex).lat;
     }
 
     /**
@@ -49,7 +31,7 @@ public class RouteHelper {
      * @return Longitude of the next stop
      */
     public double getStopLon() {
-        return stopsCoords.get(nextStopIndex).get(1);
+        return stopsList.get(nextStopIndex).lon;
     }
 
     /**
@@ -57,15 +39,20 @@ public class RouteHelper {
      *
      * @return List of stops
      */
-    public ArrayList<List<Double>> getStopsCoords() {
-        return stopsCoords;
+    public ArrayList<List<Double>> getStopsList() {
+        ArrayList<List<Double>> coords = new ArrayList<>();
+        for(Stops stop : stopsList){
+            List<Double> coordPair = Arrays.asList(stop.lat, stop.lon);
+            coords.add(coordPair);
+        }
+        return coords;
     }
 
     /**
      * Get next stop in the list of stops
      */
     public void getNextStop() {
-        if (nextStopIndex < stopsCoords.size()) {
+        if (nextStopIndex < stopsList.size()) {
             nextStopIndex++;
         }
     }
@@ -107,15 +94,15 @@ public class RouteHelper {
     public boolean isStopClose(double currLat, double currLon) {
         boolean isClose = false;
         double distance = 0;
-        if (nextStopIndex < stopsCoords.size()) {
+        if (nextStopIndex < stopsList.size()) {
             distance = getDistance(currLat, currLon, getStopLat(), getStopLon());
             final double radius = 50.0;
 
             isClose = distance <= radius;
             if (!isClose && nextStopIndex != 0 && nextStopIndex - 1 >= 0) {
                 //Verify if we passed a stop
-                double prvLat  = stopsCoords.get(nextStopIndex-1).get(0);
-                double prvLon = stopsCoords.get(nextStopIndex-1).get(1);
+                double prvLat  = stopsList.get(nextStopIndex-1).lat;
+                double prvLon = stopsList.get(nextStopIndex-1).lon;
                 double prvStpDstc = getDistance(currLat, currLon, prvLat, prvLon);
                 double distanceStops = getDistance(prvLat, prvLon, getStopLat(), getStopLon());
                 if(prvStpDstc > distance && distanceStops < prvStpDstc){
