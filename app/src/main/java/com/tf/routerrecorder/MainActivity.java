@@ -33,19 +33,20 @@ import androidx.recyclerview.widget.RecyclerView;
 import androidx.room.Room;
 
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
-import com.tf.routerrecorder.Adapters.ListAdapter;
-import com.tf.routerrecorder.Database.Entities.Agency;
-import com.tf.routerrecorder.Database.Entities.RRData;
-import com.tf.routerrecorder.Database.Entities.Route;
-import com.tf.routerrecorder.Database.Entities.Stops;
-import com.tf.routerrecorder.Database.Entities.Trips;
-import com.tf.routerrecorder.Database.Infrastructure.AppDatabase;
-import com.tf.routerrecorder.Services.ForegroundService;
-import com.tf.routerrecorder.Utils.DateTimePicker;
-import com.tf.routerrecorder.Utils.GTFSExporter;
-import com.tf.routerrecorder.Utils.GTFSLoader;
-import com.tf.routerrecorder.Utils.RouteHelper;
-import static com.tf.routerrecorder.Utils.Constants.*;
+import com.tf.routerrecorder.adapters.ListAdapter;
+import com.tf.routerrecorder.database.entities.Agency;
+import com.tf.routerrecorder.database.entities.RRData;
+import com.tf.routerrecorder.database.entities.Route;
+import com.tf.routerrecorder.database.entities.Stops;
+import com.tf.routerrecorder.database.entities.StopsRoutes;
+import com.tf.routerrecorder.database.entities.Trips;
+import com.tf.routerrecorder.database.infrastructure.AppDatabase;
+import com.tf.routerrecorder.services.ForegroundService;
+import com.tf.routerrecorder.utils.DateTimePicker;
+import com.tf.routerrecorder.utils.GTFSExporter;
+import com.tf.routerrecorder.utils.GTFSLoader;
+import com.tf.routerrecorder.utils.RouteHelper;
+import static com.tf.routerrecorder.utils.Constants.*;
 
 import org.osmdroid.api.IMapController;
 import org.osmdroid.config.Configuration;
@@ -127,14 +128,13 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
                 && checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             return;
         }
-        locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 5000, 0, this);
-        locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 5000, 0, this);
+        locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 8000, 10, this);
+        locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 8000, 10, this);
         Location location = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
         mapController.setCenter(new GeoPoint(location.getLatitude(), location.getLongitude()));
 
         createOrAccessDatabase();
 
-        loadStops();
         createRecyclerView();
         setupMapLines();
         startService();
@@ -182,7 +182,8 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
                 loadGTFS();
                 return true;
             case R.id.action_clean:
-                routeHelper.resetRoute();
+                if(routeHelper != null)
+                    routeHelper.resetRoute();
                 resetRoutes();
                 return true;
             case R.id.action_select:
@@ -324,7 +325,7 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
      * Load the stops from the database
      */
     private void loadStops() {
-        List<Stops> stops = db.stopsDao().getAll();
+        List<Stops> stops = db.stopsDao().getAllByRouteId(route_id);
         routeHelper = new RouteHelper(stops);
         displayStops();
     }
@@ -346,10 +347,11 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
             stops.add(newItem);
         }
         ItemizedIconOverlay<OverlayItem> myLocOverlay = new ItemizedIconOverlay<>(stops,
-                getResources().getDrawable(org.osmdroid.library.R.drawable.marker_default_focused_base, null),
+                getResources().getDrawable(org.osmdroid.library.R.drawable.marker_default, null),
                 new ItemizedIconOverlay.OnItemGestureListener<OverlayItem>() {
                     @Override
                     public boolean onItemSingleTapUp(int index, OverlayItem item) {
+                        Toast.makeText(MainActivity.this, "Parada #"+index, Toast.LENGTH_SHORT).show();
                         return false;
                     }
 
@@ -399,10 +401,6 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         db = Room.databaseBuilder(getApplicationContext(),
                 AppDatabase.class, "gtfsRouteRecorder")
                 .allowMainThreadQueries().build();
-
-        //TODO Remove
-        String[] item = {"TFA","Transportes-Tyron","S","S","S","S","S","S"};
-        db.agencyDao().insertAgency(new Agency(item));
     }
 
     /**
@@ -414,12 +412,17 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         ArrayList<Route> routes = gtfsLoader.getRoutes();
         ArrayList<Trips> trips = gtfsLoader.getTrips();
         ArrayList<Stops> stops = gtfsLoader.getStops();
+        ArrayList<StopsRoutes> stopsRoutes = gtfsLoader.getStopsRoutes();
 
         //Save in the database
         db.agencyDao().insertAllAgencies(agencies);
         db.routeDao().insertAllRoutes(routes);
         db.tripsDao().insertAllTrips(trips);
         db.stopsDao().insertAllStops(stops);
+        db.stopsRoutesDao().insertAllStopsRoutes(stopsRoutes);
+
+        //Recreate dialog;
+        setupDialog();
     }
 
     /**
@@ -477,7 +480,7 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         builder.setPositiveButton("Cargar paradas", new DialogInterface.OnClickListener() {
             @Override
             public void onClick(DialogInterface dialogInterface, int i) {
-                //TODO Cargar paradas segun el route_id
+                loadStops();
                 Toast.makeText(getApplicationContext(), "Nuevas paradas cargadas",
                                 Toast.LENGTH_SHORT).show();
                 isRecording = true;
