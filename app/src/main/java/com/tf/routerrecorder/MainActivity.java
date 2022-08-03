@@ -1,6 +1,7 @@
 package com.tf.routerrecorder;
 
 import android.Manifest;
+import android.annotation.SuppressLint;
 import android.app.AlertDialog;
 import android.content.Context;
 import android.content.DialogInterface;
@@ -12,6 +13,7 @@ import android.location.LocationManager;
 import android.net.Uri;
 import android.os.Bundle;
 import android.preference.PreferenceManager;
+import android.provider.Settings;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
@@ -74,6 +76,7 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
     private ListAdapter adapter;
     FloatingActionButton stopRecord;
     private boolean isRecording = false;
+    private boolean hasAllPermissions = false;
 
     private Polyline polyline;
     private ArrayList<GeoPoint> pathPoints;
@@ -94,17 +97,6 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        //Handle permissions
-        String[] permissions = {
-                Manifest.permission.READ_EXTERNAL_STORAGE,
-                Manifest.permission.WRITE_EXTERNAL_STORAGE,
-                Manifest.permission.ACCESS_FINE_LOCATION,
-                Manifest.permission.ACCESS_COARSE_LOCATION,
-                Manifest.permission.ACCESS_BACKGROUND_LOCATION,
-                Manifest.permission.FOREGROUND_SERVICE
-        };
-        requestPermissionsIfNecessary(permissions);
-
         //load/initialize the osmdroid configuration, this can be done
         Context ctx = getApplicationContext();
         Configuration.getInstance().load(ctx, PreferenceManager.getDefaultSharedPreferences(ctx));
@@ -121,26 +113,11 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         mapController.setZoom(18.0);
         GeoPoint startPoint = new GeoPoint(9.934739, -84.087502);
         mapController.setCenter(startPoint);
-
-        //Access the GPS
-        LocationManager locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
-        if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED
-                && checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            return;
+        if(!hasPermissions()){
+            openSettingsScreen();
+        }else{
+            setupApp();
         }
-        locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 8000, 10, this);
-        locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 8000, 10, this);
-        Location location = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
-        mapController.setCenter(new GeoPoint(location.getLatitude(), location.getLongitude()));
-
-        createOrAccessDatabase();
-
-        createRecyclerView();
-        setupMapLines();
-        startService();
-
-        gtfsLoader = new GTFSLoader(getApplicationContext());
-        setupDialog();
 
         stopRecord = findViewById(R.id.stop_fab);
         stopRecord.setOnClickListener(new View.OnClickListener() {
@@ -153,11 +130,63 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
 
     }
 
+    /**
+     * Display a message to open the app's settings.
+     */
+    private void openSettingsScreen(){
+        AlertDialog.Builder builder = new AlertDialog.Builder(this)
+                .setTitle("La app no tiene todos los permisos")
+                .setMessage("Dale todos los permisos a la app\n"+
+                        "- Ubicación: Permitir todo el tiempo\n"+
+                        "- Archivos y multimedia: Solo permitir acceso a contenido multimedia")
+                .setNegativeButton("Cerrar App", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialogInterface, int i) {
+                        MainActivity.this.finish();
+                    }
+                })
+                .setPositiveButton("Abrir Configuración", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialogInterface, int i) {
+                        Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+                        Uri uri = Uri.fromParts("package", getPackageName(), null);
+                        intent.setData(uri);
+                        startActivity(intent);
+                    }
+                });
+        builder.show();
+    }
+
+    @SuppressLint("MissingPermission")
+    private void setupApp(){
+        //Access the GPS
+        LocationManager locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+        locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 8000, 10, this);
+        //locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 8000, 10, this);
+        Location location = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
+        mapController.setCenter(new GeoPoint(location.getLatitude(), location.getLongitude()));
+
+        createOrAccessDatabase();
+
+        createRecyclerView();
+        startService();
+
+        gtfsLoader = new GTFSLoader(getApplicationContext());
+        setupDialog();
+
+        hasAllPermissions = true;
+    }
+
     @Override
     public void onResume() {
         super.onResume();
         //this will refresh the osmdroid configuration on resuming.
         map.onResume(); //needed for compass, my location overlays, v6.0.0 and up
+        if(hasPermissions()){
+            setupApp();
+        }else{
+            hasAllPermissions = false;
+        }
     }
 
     @Override
@@ -177,26 +206,34 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         // Handle item selection
-        switch (item.getItemId()) {
-            case R.id.action_add:
-                loadGTFS();
-                return true;
-            case R.id.action_clean:
-                if(routeHelper != null)
-                    routeHelper.resetRoute();
-                resetRoutes();
-                return true;
-            case R.id.action_select:
-                selectRoute();
-                return true;
-            case R.id.action_export:
-                exportData();
-                return true;
-            default:
-                return super.onOptionsItemSelected(item);
+        if(hasAllPermissions) {
+            switch (item.getItemId()) {
+                case R.id.action_add:
+                    loadGTFS();
+                    break;
+                case R.id.action_clean:
+                    if (routeHelper != null)
+                        routeHelper.resetRoute();
+                    resetRoutes();
+                    break;
+                case R.id.action_select:
+                    selectRoute();
+                    break;
+                case R.id.action_export:
+                    exportData();
+                    break;
+                default:
+                    return super.onOptionsItemSelected(item);
+            }
+        }else{
+            openSettingsScreen();
         }
+        return true;
     }
 
+    /**
+     * Open the GTFS.zip file
+     */
     private void loadGTFS(){
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
@@ -204,6 +241,9 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         startActivityGTFS.launch(intent);
     }
 
+    /**
+     * Reset all the routes and the map
+     */
     private void resetRoutes(){
         items.clear();
         pathPoints.clear();
@@ -211,9 +251,11 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         adapter.notifyDataSetChanged();
         polyline = new Polyline();
         if (map.getOverlays().size() > 2) {
-            map.getOverlays().remove(0);
-            map.getOverlays().remove(1);
+            map.getOverlays().remove(0);//Stops
+            map.getOverlays().remove(1);//Lines
         }
+        map.invalidate();
+        Toast.makeText(this, "Reset", Toast.LENGTH_SHORT).show();
     }
 
     ActivityResultLauncher<Intent> startActivityGTFS = registerForActivityResult(
@@ -235,31 +277,32 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
 
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        ArrayList<String> permissionsToRequest = new ArrayList<>(Arrays.asList(permissions).subList(0, grantResults.length));
-        if (permissionsToRequest.size() > 0) {
-            ActivityCompat.requestPermissions(
-                    this,
-                    permissionsToRequest.toArray(new String[0]),
-                    REQUEST_PERMISSIONS_REQUEST_CODE);
-        }
+        super.onRequestPermissionsResult(requestCode, permissions,grantResults);
     }
 
-    private void requestPermissionsIfNecessary(String[] permissions) {
-        ArrayList<String> permissionsToRequest = new ArrayList<>();
-        for (String permission : permissions) {
-            if (ContextCompat.checkSelfPermission(this, permission)
-                    != PackageManager.PERMISSION_GRANTED) {
-                // Permission is not granted
-                permissionsToRequest.add(permission);
+    /**
+     * Verify if the app has all the permissions
+     * @return False at least one permission is missing True all granted
+     */
+    private boolean hasPermissions() {
+        //Handle permissions
+        String[] permissions = {
+                Manifest.permission.WRITE_EXTERNAL_STORAGE,
+                Manifest.permission.READ_EXTERNAL_STORAGE,
+                Manifest.permission.FOREGROUND_SERVICE,
+                Manifest.permission.ACCESS_FINE_LOCATION,
+                Manifest.permission.ACCESS_COARSE_LOCATION,
+                Manifest.permission.ACCESS_BACKGROUND_LOCATION
+        };
+        int result;
+        List<String> listPermissionsNeeded = new ArrayList<>();
+        for (String p:permissions) {
+            result = ContextCompat.checkSelfPermission(MainActivity.this,p);
+            if (result != PackageManager.PERMISSION_GRANTED) {
+                return false;
             }
         }
-        if (permissionsToRequest.size() > 0) {
-            ActivityCompat.requestPermissions(
-                    this,
-                    permissionsToRequest.toArray(new String[0]),
-                    REQUEST_PERMISSIONS_REQUEST_CODE);
-        }
+        return true;
     }
 
     @Override
@@ -299,15 +342,16 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
                 Toast.makeText(this, "Estoy cerca de una parada", Toast.LENGTH_SHORT).show();
                 text += "\n Parada cerca";
                 //Is a stop
-                newRRData.stop_id = "test";
+                newRRData.stop_id = routeHelper.getLastStopId();
             }
-            db.rrDataDao().insertRRData(newRRData);
 
             //Update UI
             datos.add(text);
             adapter.notifyDataSetChanged();
             pathPoints.add(currentLoc);
             polyline.setPoints(pathPoints);
+
+            db.rrDataDao().insertRRData(newRRData);
         }
     }
 
@@ -328,6 +372,7 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         List<Stops> stops = db.stopsDao().getAllByRouteId(route_id);
         routeHelper = new RouteHelper(stops);
         displayStops();
+        setupMapLines();
     }
 
     /**
@@ -400,6 +445,7 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
     private void createOrAccessDatabase(){
         db = Room.databaseBuilder(getApplicationContext(),
                 AppDatabase.class, "gtfsRouteRecorder")
+                .fallbackToDestructiveMigration()
                 .allowMainThreadQueries().build();
     }
 

@@ -10,10 +10,12 @@ public class RouteHelper {
 
     private List<Stops> stopsList;
     private int nextStopIndex;
+    private String lastStopId;
 
     public RouteHelper(List<Stops> stops) {
         stopsList = stops;
         nextStopIndex = 0;
+        lastStopId = "";
     }
 
     /**
@@ -114,6 +116,7 @@ public class RouteHelper {
         }
 
         if(isClose){
+            lastStopId = stopsList.get(nextStopIndex).stop_id;
             getNextStop();
         }
 
@@ -125,5 +128,13 @@ public class RouteHelper {
      */
     public void resetRoute(){
         nextStopIndex = 0;
+    }
+
+    /**
+     * GEt the id of the stop
+     * @return stop_id
+     */
+    public String getLastStopId() {
+        return lastStopId;
     }
 }
